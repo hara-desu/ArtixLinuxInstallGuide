@@ -1,3 +1,82 @@
+# Install Artix Linux to a machine with UEFI
+
+1. Check if your machine uses UEFI:
+
+```
+ls /sys/firmware/efi/efivars
+```
+
+2. Connect to the Internet using wpa_supplicant
+
+```
+// Check for available network interfaces (search for wlan0 if using wifi)
+ip link
+
+// Create a config file for wpa_supplicant.conf specifying
+nano /etc/wpa_supplicant/wpa_supplicant.conf
+
+// Add the following to the wpa_supplicant.conf
+
+network = {
+  ssid="your_SSID"
+  psk="your_pw"
+}
+
+// Unblock all wireless devices on you pc
+rfkill unblock all
+
+// Activate connection using wpa_supplicant
+wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf
+
+dhcpcd
+
+// verify the connection by pinging to a website
+ping -c 4 www.google.com
+```
+
+3. '''lsblk''' to check the disk for installing the OS
+
+4. Format the disk
+
+```
+cfdisk /dev/nvme0n1
+```
+
+- Create three partitions:
+
+Boot partition (/dev/nvme0n1p1): 1GB / Type - EFI system 
+Root partition (/dev/nvme0n1p2): 30GB / Type - Linux filesystem
+Home partition (/dev/nvme0n1p3): Remaining space / Type - Linux filesystem
+
+Additionally may consider creating a swap partition
+
+5. Put filesystems on the created partitions
+
+```
+// Format the root partition to fat for UEFI systems
+mkfs.fat -F32 /dev/nvme0n1p1
+mkfs.ext4 /dev/nvme0n1p2
+mkfs.ext4 /dev/nvme0n1p3
+```
+
+6. Mount the partitions
+
+```
+mount /dev/nvme0n1p2 /mnt
+mkdir /mnt/home
+mkdir /mnt/boot
+mount /dev/nvme0n1p1 /mnt/boot
+mount /dev/nvme0n1p3 /mnt/home
+```
+
+
+TO CONTINUE
+
+
+****
+
+
+
 # Luke's Auto-Rice Bootstrapping Scripts (LARBS)
 
 ## Installation:
