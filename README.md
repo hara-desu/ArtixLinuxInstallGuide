@@ -62,90 +62,147 @@ mkfs.ext4 /dev/nvme0n1p3
 6. Mount the partitions
 
 ```
+// Mount root  partition to /mnt
 mount /dev/nvme0n1p2 /mnt
+// Make directories to mount home and boot partitions
 mkdir /mnt/home
 mkdir /mnt/boot
-mount /dev/nvme0n1p1 /mnt/boot
 mount /dev/nvme0n1p3 /mnt/home
+mount /dev/nvme0n1p1 /mnt/boot
 ```
 
-
-TO CONTINUE
-
-
-****
-
-
-
-# Luke's Auto-Rice Bootstrapping Scripts (LARBS)
-
-## Installation:
-
-On an Arch-based distribution as root, run the following:
+7. Install the OS
 
 ```
+// Install efibootmgr only for UEFI machines
+basestrap -i /mnt base base-devel runit elogind-runit linux linux-firmware grub networkmanager vim neovim networkmanager-runit cryptsetup lvm2 lvm2-runit efibootmgr
+```
+
+8. Now the OS is installed but we can't boot into it. So, we have to install bootloader. When our system reboots we have to tell it how to remount the partitions. 
+
+- The command for this is ```fstabgen```
+- If you run it and give it a location it generates a file which tells you how to mount everything when you start. 
+
+```
+fstabgen -U /mnt >> /mnt/etc/fstab
+```
+
+- The machine reads this file on start
+
+9. Change root directory to the newly installed system
+
+```
+artix-chroot /mnt bash
+```
+
+10. Set the time zone
+
+```
+// Check available locations
+ln -s /usr/share/zoneinfo
+// Set the timezone
+ln -s /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+// Check if the time zone was set correctly
+ls -l /etc/localtime
+```
+
+11. Sync clock: ```hwclock --systohc```
+
+12. Generate locales
+
+- Check your locale in locale.gen file and uncomment it
+
+```
+vim /etc/locale.gen
+```
+
+- Open the locale.conf file
+
+```
+vim /etc/locale.conf
+```
+
+- Add the following to the locale file
+
+```
+export LANG="en_US.UTF-8"
+export LC_COLLATE="C"
+```
+
+```
+locale-gen
+```
+
+13. Set hostname
+
+```
+echo "lada" > /etc/hostname
+vim /etc/hosts
+```
+
+- Add the following to /etc/hosts file
+
+```
+127.0.0.1  localhost
+::1        localhost
+127.0.1.1  lada.localdomain lada
+```
+
+14. Enable networkmanager to automatically start on boot up
+
+```
+ln -s /etc/runit/sv/NetworkManager /etc/runit/runsvdir/current
+```
+
+15. Create a password: ```passwd```
+
+16. Add a user
+
+```
+useradd -G wheel -m lada
+passwd lada
+```
+
+17. Additionally install dhcpcd and wpa_supplicant to manage internet connection
+
+```
+pacman -S dhcpcd wpa_supplicant
+```
+
+18. Configure grub
+
+```
+// Below is the command only for UEFI systems
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=grub
+
+grub-mkconfig -o /boot/grub/grub.cfg
+```
+
+19. Exit and reboot
+
+```
+exit (ctrl+D)
+reboot
+```
+
+20. After reboot install LARBS
+
+```
+su
 curl -LO larbs.xyz/larbs.sh
 sh larbs.sh
 ```
 
-That's it.
+- ctrl+D again and login as the new user generated during LARBS install
 
-## What is LARBS?
+```
+// To start X11 session
+startx
+```
 
-LARBS is a script that autoinstalls and autoconfigures a fully-functioning
-and minimal terminal-and-vim-based Arch Linux environment.
+****
 
-LARBS can be run on a fresh install of Arch or Artix Linux, and provides you
-with a fully configured diving-board for work or more customization.
+## TODO
 
-## Customization
+* Customize the installation of LARBS by adding more programs I need for basic install
 
-By default, LARBS uses the programs [here in progs.csv](static/progs.csv) and installs
-[my dotfiles repo (voidrice) here](https://github.com/lukesmithxyz/voidrice),
-but you can easily change this by either modifying the default variables at the
-beginning of the script or giving the script one of these options:
-
-- `-r`: custom dotfiles repository (URL)
-- `-p`: custom programs list/dependencies (local file or URL)
-- `-a`: a custom AUR helper (must be able to install with `-S` unless you
-  change the relevant line in the script
-
-### The `progs.csv` list
-
-LARBS will parse the given programs list and install all given programs. Note
-that the programs file must be a three column `.csv`.
-
-The first column is a "tag" that determines how the program is installed, ""
-(blank) for the main repository, `A` for via the AUR or `G` if the program is a
-git repository that is meant to be `make && sudo make install`ed.
-
-The second column is the name of the program in the repository, or the link to
-the git repository, and the third column is a description (should be a verb
-phrase) that describes the program. During installation, LARBS will print out
-this information in a grammatical sentence. It also doubles as documentation
-for people who read the CSV and want to install my dotfiles manually.
-
-Depending on your own build, you may want to tactically order the programs in
-your programs file. LARBS will install from the top to the bottom.
-
-If you include commas in your program descriptions, be sure to include double
-quotes around the whole description to ensure correct parsing.
-
-### The script itself
-
-The script is extensively divided into functions for easier readability and
-trouble-shooting. Most everything should be self-explanatory.
-
-The main work is done by the `installationloop` function, which iterates
-through the programs file and determines based on the tag of each program,
-which commands to run to install it. You can easily add new methods of
-installations and tags as well.
-
-Note that programs from the AUR can only be built by a non-root user. What
-LARBS does to bypass this by default is to temporarily allow the newly created
-user to use `sudo` without a password (so the user won't be prompted for a
-password multiple times in installation). This is done ad-hocly, but
-effectively with the `newperms` function. At the end of installation,
-`newperms` removes those settings, giving the user the ability to run only
-several basic sudo commands without a password (`shutdown`, `reboot`,
-`pacman -Syu`).
