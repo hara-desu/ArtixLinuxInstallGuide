@@ -200,7 +200,6 @@ sh larbs.sh
 startx
 ```
 
-****
 
 ## TODO
 
